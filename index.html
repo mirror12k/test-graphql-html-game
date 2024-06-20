@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Local GraphQL API</title>
+  <script src="graphql.bundle.js"></script>
+  <script>
+    // Sample data
+    const buildings = [
+      { id: 1, type: 'campfire', position: { x: 2, y: 3 } },
+      { id: 2, type: 'campfire', position: { x: 5, y: 5 } },
+      { id: 3, type: 'house', position: { x: 1, y: 1 } }
+    ];
+
+    const self = { position: { x: 0, y: 0 }, visionRadius: 5 };
+
+    // Calculate distance between two points
+    function calculateDistance(pos1, pos2) {
+      return Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
+    }
+
+    // Define GraphQL schema
+    const { graphql, graphqlSync, buildSchema, GraphQLSchema, GraphQLObjectType, GraphQLString } = window.graphql;
+
+    const schema = buildSchema(`
+      type Query {
+        self: Entity
+      }
+
+      type Entity {
+        nearestBuilding(target: String!, distanceLessThan: Float!, inVision: Boolean!): Building
+      }
+
+      type Building {
+        distance: Float
+        position: Position
+        pathTo: [Position]
+      }
+
+      type Position {
+        x: Float
+        y: Float
+      }
+    `);
+
+    console.log("schema:", schema);
+
+    // Define resolvers
+    const root = {
+      self: () => ({
+        nearestBuilding: ({ target, distanceLessThan, inVision }) => {
+          const visibleBuildings = buildings.filter(building => {
+            const distance = calculateDistance(self.position, building.position);
+            const inVisionRadius = inVision ? distance <= self.visionRadius : true;
+            return building.type === target && distance < distanceLessThan && inVisionRadius;
+          });
+
+          if (visibleBuildings.length === 0) {
+            return null;
+          }
+
+          const nearestBuilding = visibleBuildings.reduce((nearest, building) => {
+            const distance = calculateDistance(self.position, building.position);
+            if (!nearest || distance < nearest.distance) {
+              return {
+                ...building,
+                distance,
+                pathTo: [{ x: self.position.x, y: self.position.y }, { x: building.position.x, y: building.position.y }]
+              };
+            }
+            return nearest;
+          }, null);
+
+          return nearestBuilding;
+        }
+      })
+    };
+
+    // Function to execute GraphQL query
+    function executeQuery(query) {
+      return graphqlSync({ schema, source: query, rootValue: root });
+    }
+
+    // Example query
+    const query = `{
+      self {
+        nearestBuilding(target: "campfire", distanceLessThan: 5, inVision: true) {
+          distance
+          position { x y }
+          pathTo { x y }
+        }
+      }
+    }`;
+
+    // Execute the query
+    console.log(executeQuery(query));
+
+  </script>
+</head>
+<body>
+  <h1>Local GraphQL API</h1>
+  <p>Open the console to see the query result.</p>
+</body>
+</html>

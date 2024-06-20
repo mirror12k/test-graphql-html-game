@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+docker build -t "test-graphql-html-game" docker
+docker run -it --rm -v "$PWD:/app" -v "$PWD/docker:/app/docker:ro" --env-file="docker/.env" --name running-test-graphql-html-game "test-graphql-html-game"
